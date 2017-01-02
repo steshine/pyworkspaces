@@ -19,6 +19,12 @@ class Parse():
         upload_img = 'upload_place_image_list'
         self.poi_type = ''
         self.activity = ['level_one_activity','company_name','gather_place','telephone','way_to_poi']
+        self.car_rental = ['rental_address','telephone','way_to_poi','pick_up_desc','self_pick_up_desc','rental_reminder_desc']
+        self.car_back = ['return_address','telephone','return_desc','self_return_desc','return_reminder_desc','gas_station_address','gas_station_coordinate']
+        self.images = []
+
+
+
         for base in self.base_keywords:
             setattr(self, base, '')
 
@@ -61,6 +67,10 @@ class Parse():
                 print 'insert fail', Exception
                 # print self.result
                 # self.db.close()
+    def insert(self,sql,value):
+        self.cursor.executemany(sql,value)
+        self.db.commit()
+        print 'insert images success'
     def get_tr_text(self,keys):
         if (self.soup != 0):
             for base in keys:
@@ -78,11 +88,42 @@ class Parse():
         self.get_tr_text(self.base_keywords)
     def get_activity(self):
         self.get_tr_text(self.activity)
+    def get_car_rental(self):
+        self.get_tr_text()
     def get_type(self):
         self.type = self.soup.select('h1 span ')[0].get('id')
         htmltype =  self.type[self.type.index('_',8)+1:self.type.rindex('_')]
+        print 'source '+htmltype
         if(htmltype == 'activity'):
             self.type = 'Activity'
+        if (htmltype == 'hotel'):
+            self.type = 'HotelMessage'
+        if(htmltype == 'meal'):
+            self.type = 'MealType'
+        if(htmltype == 'attraction'):
+            self.type = 'TouristAttractions'
+        if(htmltype == 'tip'):
+            self.type = 'DisposablePrompt'
+        if(htmltype == 'roadtrip'):
+            self.type = 'RoadTrips'
+        if(htmltype == 'airport'):
+            self.type = 'AirportType'
+        if(htmltype == 'flight'):
+            self.type = 'Aircraft'
+        if(htmltype == 'line'):
+            self.type = 'CityTraffic'
+        if(htmltype == 'car_rental'):
+            self.type = 'CarStore'
+        if(htmltype == 'airbnbs'):
+            self.type = 'Airbnb'
+        if(htmltype == 'hubs'):
+            self.type = 'TransportationHub'
+        if(htmltype.find('_') > -1):
+            print 'target ' + self.type
+    def get_images(self):
+        imageList = self.soup.select('.upload_place_image_list img')
+        for img in imageList:
+            self.images.append(img.get('src'))
     def build_base_sql(self):
         if (self.soup != 0 and self.file_name != 0):
             '''
@@ -105,7 +146,7 @@ class Parse():
                          ,self.introduce_desc,self.remark,'0','0',dt,dt,'crash')
         else:
             self.base_sql = 0
-            # print self.sql
+        print self.base_sql
 
     def build_activity_sql(self):
         self.activity_sql = 'INSERT INTO roadbooks.poi_activity (first_type, company_name, scene_address, scene_phone, scene_arrive_way, scene_gather_place, base_id)' \
@@ -119,26 +160,49 @@ class Parse():
                         % (self.website,self.booking_desc,self.rebate_desc,self.file_name,self.is_need_booking,self.expedia_search_url
                           ,self.booking_search_url,self.expedia_api_url,self.haoqiao_api_url)
         print self.book_sql
+    def build_images_sql(self):
+        self.images_sql = 'INSERT INTO roadbooks.poi_images (base_id, img_url,img_name, poisition, has_copyright)VALUES(%s, %s, %s, %s, %s)'
+        res = []
+        for img in self.images:
+            tmp = (int(self.file_name),str(img),img[img.rindex('/')+1:len(img)],0,0)
+            res.append(tmp)
+        self.images_sql_value = res;
+    def build_car_rental_sql(self):
+        self.car_rental_sql = 'INSERT INTO roadbooks.car_rental (rental_address, phone, arrive_type, store_instruction, auto_instruction, item, base_id)VALUES("%s","%s", "%s", "%s", "%s","%s","%s", "%s")'\
+        % (self.rental_address,self.telephone,self.way_to_poi,self.pick_up_desc,self.self_pick_up_desc,self.rental_reminder_desc,self.file_name)
+    def build_car_back_sql(self):
+        self.car_back_sql = 'INSERT INTO roadbooks.car_back ( return_address, store_instruction, auto_instruction, item, station_address, station_coord, base_id)VALUES( "%s", "%s", "%s", "%s","%s","%s","%s")' \
+                   % (self.return_address, self.return_desc, self.self_return_desc, self.return_reminder_desc,
+                      self.gas_station_address, self.gas_station_coordinate,self.file_name)
+
     def build_tag_sql(self):
-        self.sql = ''
+        self.tag_sql = ''
 
 
 list = ['1', '56', '61']
 base_dir = 'D:\\Document\\16_PrivateWork\\06_Roadbooks3\\03_poi\\poi\\poi\\'
-for i in range(1, 2):
+for i in range(456, 2000):
     parse = Parse()
     parse.read(base_dir + str(i) + '.html')
-    parse.get_type()
-    #parse.get_base_info()
-    parse.get_conn()
-    #parse.build_base_sql()
-    #parse.get_book();
-    #parse.build_book_sql()
-    parse.get_activity()
-    parse.build_activity_sql();
-    parse.insert(parse.activity_sql)
-    #parse.insert(parse.base_sql)
-    #parse.insert(parse.book_sql)
+    if(parse.file_name != 0):
+
+        #parse.get_conn()
+        parse.get_type()
+        '''
+        parse.get_images()
+        parse.build_images_sql()
+        parse.insert(parse.images_sql,parse.images_sql_value)
+        parse.get_base_info()
+        parse.build_base_sql()
+        parse.get_book();
+        parse.build_book_sql()
+        parse.get_activity()
+        parse.build_activity_sql();
+        if(parse.type == 'Activity'):
+            parse.insert(parse.base_sql)
+            parse.insert(parse.activity_sql)
+            parse.insert(parse.book_sql)
+        '''
 
 
 
