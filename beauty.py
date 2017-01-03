@@ -5,7 +5,11 @@ import time
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
-
+class Schema():
+    def __init__(self,url,name,img_name):
+        self.url = url
+        self.name = name
+        self.img_name = img_name
 class Parse():
     def __init__(self):
         self.base_keywords = ['country_name', 'place_display_name', 'google_place_id', 'level_one_activity',
@@ -21,8 +25,10 @@ class Parse():
         self.activity = ['level_one_activity','company_name','gather_place','telephone','way_to_poi']
         self.car_rental = ['rental_address','telephone','way_to_poi','pick_up_desc','self_pick_up_desc','rental_reminder_desc']
         self.car_back = ['return_address','telephone','return_desc','self_return_desc','return_reminder_desc','gas_station_address','gas_station_coordinate']
+        self.meal = ['address','telephone','way_to_poi','availability_desc','price_desc','recommend_dish','reminder_desc']
+        self.sem = ['price_number','package_name','is_prepaid','is_booked']
         self.images = []
-
+        self.schemas = []
 
 
         for base in self.base_keywords:
@@ -54,7 +60,7 @@ class Parse():
         return list
     def get_book(self):
         self.get_tr_text(self.booking_info)
-    def insert(self,sql):
+    def insertSingle(self,sql):
         if (sql != 0):
             try:
                 # print self.sql
@@ -71,6 +77,8 @@ class Parse():
         self.cursor.executemany(sql,value)
         self.db.commit()
         print 'insert images success'
+
+    #------------------------getxxx-------------------------------
     def get_tr_text(self,keys):
         if (self.soup != 0):
             for base in keys:
@@ -89,7 +97,17 @@ class Parse():
     def get_activity(self):
         self.get_tr_text(self.activity)
     def get_car_rental(self):
-        self.get_tr_text()
+        self.get_tr_text(self.car_rental)
+    def get_car_back(self):
+        self.get_tr_text(self.car_back)
+    def get_airport(self):
+        self.get_tr_text(self.airport)
+    def get_hotel(self):
+        self.get_tr_text(self.hotel)
+    def get_sem(self):
+        self.get_tr_text(self.sem)
+    def get_meal(self):
+        self.get_tr_text(self.meal)
     def get_type(self):
         self.type = self.soup.select('h1 span ')[0].get('id')
         htmltype =  self.type[self.type.index('_',8)+1:self.type.rindex('_')]
@@ -114,7 +132,7 @@ class Parse():
             self.type = 'CityTraffic'
         if(htmltype == 'car_rental'):
             self.type = 'CarStore'
-        if(htmltype == 'airbnbs'):
+        if(htmltype == 'airbnb'):
             self.type = 'Airbnb'
         if(htmltype == 'hubs'):
             self.type = 'TransportationHub'
@@ -124,6 +142,15 @@ class Parse():
         imageList = self.soup.select('.upload_place_image_list img')
         for img in imageList:
             self.images.append(img.get('src'))
+    def get_schemas(self):
+        scmList = self.soup.select('.control-item img')
+        for img in scmList:
+             url = img.get('src').strip()
+             name = img.next_sibling.next_sibling.get_text().strip()
+             img_name = url[url.rindex('/')+1:len(url)]
+             self.schemas.append(Schema(url, name, img_name))
+
+    #----------------------buildxxxsql----------------
     def build_base_sql(self):
         if (self.soup != 0 and self.file_name != 0):
             '''
@@ -167,42 +194,103 @@ class Parse():
             tmp = (int(self.file_name),str(img),img[img.rindex('/')+1:len(img)],0,0)
             res.append(tmp)
         self.images_sql_value = res;
+    def build_schema_sql(self):
+        self.schema_sql = 'INSERT INTO roadbooks.poi_schematics (img_url, img_name, sub_type, describ , base_id)VALUES( %s, %s, %s, %s, %s)'
+        res = []
+        for sem in self.schemas:
+            tmp = (sem.url,sem.img_name,'0',sem.name,int(self.file_name))
+            res.append(tmp)
+        self.sem_sql_value = res
     def build_car_rental_sql(self):
-        self.car_rental_sql = 'INSERT INTO roadbooks.car_rental (rental_address, phone, arrive_type, store_instruction, auto_instruction, item, base_id)VALUES("%s","%s", "%s", "%s", "%s","%s","%s", "%s")'\
+        self.car_rental_sql = 'INSERT INTO roadbooks.car_rental (rental_address, phone, arrive_type, store_instruction, auto_instruction, item, base_id)VALUES("%s","%s", "%s", "%s", "%s","%s","%s")'\
         % (self.rental_address,self.telephone,self.way_to_poi,self.pick_up_desc,self.self_pick_up_desc,self.rental_reminder_desc,self.file_name)
     def build_car_back_sql(self):
         self.car_back_sql = 'INSERT INTO roadbooks.car_back ( return_address, store_instruction, auto_instruction, item, station_address, station_coord, base_id)VALUES( "%s", "%s", "%s", "%s","%s","%s","%s")' \
                    % (self.return_address, self.return_desc, self.self_return_desc, self.return_reminder_desc,
                       self.gas_station_address, self.gas_station_coordinate,self.file_name)
 
+    def build_airport_sql(self):
+        self.airport_sql = 'INSERT INTO roadbooks.poi_airport_type   ( icao_code,   offical_website,   way_to_poi,   way_to_city,   base_id  )  VALUES  ( "%s", "%s", "%s", "%s","%s" )' \
+        %(self.icao_code,self.website,self.way_to_poi,self.way_to_city,self.file_name)
+    def build_sem_sql(self):
+        self.sem_sql = 'INSERT INTO roadbooks.poi_sem (price_number, package_name, is_prepaid, is_booked, base_id)VALUES("%s", "%s", "%s", "%s", "%s")' \
+        % (self.price_number,self.package_name,self.is_prepaid,self.is_booked,self.file_name)
+    def build_hotel_sql(self):
+        self.hotel_sql = 'INSERT INTO roadbooks.poi_hotel ( address, phone, arrive_type, check_in_time, parking_situation, network_situation, check_in_item, check_out_time, check_out_item, base_id)VALUES' \
+                         '( "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s", "%s")'\
+                         %  (self.address,self.telephone,self.way_to_poi,self.check_in_time_desc,self.parking_desc,self.network_desc,self.reminder_desc,self.check_out_time_desc,self.check_out_reminder_desc,self.file_name)
     def build_tag_sql(self):
-        self.tag_sql = ''
+        self.meal_sql = ''
+    def build_meal_sql(self):
+        self.meal_sql = 'INSERT INTO roadbooks.poi_meal_type (sence_address, sence_phone, sence_arrive_way, sence_bussiness_time, sence_per_consume, sence_recom_food, sence_attention, base_id)VALUES("%s","%s","%s","%s","%s","%s","%s","%s")' \
+        % (self.address,self.telephone,self.way_to_poi,self.availability_desc,self.price_desc,self.recommend_dish,self.reminder_desc,self.file_name)
 
 
 list = ['1', '56', '61']
 base_dir = 'D:\\Document\\16_PrivateWork\\06_Roadbooks3\\03_poi\\poi\\poi\\'
-for i in range(456, 2000):
+for i in range(2, 3):
     parse = Parse()
     parse.read(base_dir + str(i) + '.html')
     if(parse.file_name != 0):
 
-        #parse.get_conn()
+        parse.get_conn()
         parse.get_type()
-        '''
+        parse.get_schemas()
+
+        ''''''
         parse.get_images()
         parse.build_images_sql()
         parse.insert(parse.images_sql,parse.images_sql_value)
         parse.get_base_info()
         parse.build_base_sql()
-        parse.get_book();
-        parse.build_book_sql()
-        parse.get_activity()
-        parse.build_activity_sql();
+
+
+
+        parse.insertSingle(parse.base_sql)
         if(parse.type == 'Activity'):
-            parse.insert(parse.base_sql)
+            parse.get_activity()
+            parse.build_activity_sql();
+            parse.get_book();
+            parse.build_book_sql()
             parse.insert(parse.activity_sql)
             parse.insert(parse.book_sql)
-        '''
+        if(parse.type == 'AirportType'):
+            parse.get_airport()
+            parse.build_airport_sql()
+            parse.insertSingle(parse.airport_sql)
+            parse.get_schemas()
+            parse.build_schema_sql()
+            parse.insert(parse.schema_sql, parse.sem_sql_value)
+        if(parse.type == 'CarStore'):
+            parse.get_car_rental()
+            parse.get_car_back()
+            parse.get_book()
+            parse.build_car_rental_sql()
+            parse.build_car_back_sql()
+            parse.insertSingle(parse.car_rental_sql)
+            parse.insertSingle(parse.car_back_sql)
+        if(parse.type == 'HotelMessage'):
+            parse.get_book()
+            parse.get_hotel()
+            parse.get_sem()
+            parse.build_book_sql()
+            parse.build_hotel_sql()
+            parse.build_sem_sql()
+            parse.insertSingle(parse.sem_sql)
+            parse.insertSingle(parse.book_sql)
+            parse.insertSingle(parse.hotel_sql)
+        if(parse.type == 'MealType'):
+            parse.get_book()
+            parse.get_meal()
+            parse.get_sem()
+            parse.build_book_sql()
+            parse.build_meal_sql()
+            parse.build_sem_sql()
+
+            parse.insertSingle(parse.book_sql)
+            parse.insertSingle(parse.meal_sql)
+            #parse.insertSingle(parse.sem_sql)
+
 
 
 
