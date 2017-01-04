@@ -91,6 +91,7 @@ class Parse():
             except BaseException, Exception:
                 self.db.rollback()
                 print 'insert fail', Exception
+                sys.exit(0)
                 # print self.result
                 # self.db.close()
 
@@ -287,12 +288,13 @@ class Parse():
                            self.recommend_dish, self.reminder_desc, self.file_name)
 
     def build_attraction(self):
-        self.attraction_sql = 'INSERT INTO roadbooks.poi_tourist_attractions  ( sence_address,  sence_phone,  sence_arrive_way,  sence_open_time,  sence_price,  sence_activity,  sence_attention,  base_id ) VALUES (  "%s",  "%s",  "%s",  "%s",  "%s",  "%s",  "%s",  "%s" )' \
+        self.attraction_sql = 'INSERT INTO roadbooks.poi_tourist_attractions  ( sence_address,  sence_phone,  sence_arrive_way,  sence_open_time,  sence_price,  sence_activity,  sence_attention,  base_id ) VALUES (  "%s",  "%s",  "%s",  "%s",  "%s",  "%s", "%s","%s" )' \
                               % (self.address, self.telephone, self.way_to_poi, self.opening_time, self.price_desc,
-                                 self.guide_desc, self.reminder_desc, self.file_name)
+                                 self.guide_desc, self.reminder_desc.replace('"',' '), self.file_name)
+        print self.attraction_sql
     def build_tip_sql(self):
         self.tip_sql = 'INSERT INTO roadbooks.poi_disposable_prompt (app_scope, app_region, prompt_type, prompt_desc,reminder_desc,base_id)VALUES("%s","%s","%s","%s","%s","%s")' \
-            % (self.tipable_type,self.tipable_id,self.tip_type,self.tip_desc,self.reminder_desc,self.file_name)
+            % (self.tipable_type,self.tipable_id,self.tip_type,self.tip_desc,self.reminder_desc.replace('"',' '),self.file_name)
     def build_roadtrips(self):
             self.roadtrip_sql = 'INSERT INTO roadbooks.poi_road_trips ( start_city, end_city, sence_full_distance, sence_proposal_time, sence_tips, base_id)VALUES( "%s","%s","%s","%s","%s","%s")' \
             % (self.departure_place,self.terminal_place,self.distance,self.suggested_times,self.use_tips,self.file_name)
@@ -308,7 +310,7 @@ class Parse():
         print self.hubs_sql
 list = ['1', '56', '61']
 base_dir = 'D:\\Document\\16_PrivateWork\\06_Roadbooks3\\03_poi\\poi\\poi\\'
-for i in range(500, 1000):
+for i in range(28, 5000):
     parse = Parse()
     parse.read(base_dir + str(i) + '.html')
     if (parse.file_name != 0):
